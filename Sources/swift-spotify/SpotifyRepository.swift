@@ -7,6 +7,7 @@
 
 import Foundation
 import PromiseKit
+import SwiftyJSON
 
 private let port = 4381
 private let headers = [
@@ -40,14 +41,15 @@ public enum SpotifyCommand {
     case status
     case pause
     case resume
-    case play
+    case play(url: String)
     case csrfToken
     case version
     case custom(path: String)
+    case songInfo
 
     internal var path: String {
         switch self {
-        case .status:
+        case .status, .songInfo:
             return "/remote/status.json"
         case .pause, .resume:
             return "/remote/pause.json"
@@ -81,6 +83,26 @@ public enum SpotifyCommand {
             return false
         default:
             return true
+        }
+    }
+
+    internal func extractOutput(fromData data: Data) -> JSON? {
+        let json = JSON(data: data)
+
+        switch self {
+        case .version, .status:
+            return json
+        case .songInfo:
+            let output: [String: Any] = [
+                "title": json["track"]["track_resource"]["name"].string ?? "",
+                "album": json["track"]["album_resource"]["name"].string ?? "",
+                "artist": json["track"]["artist_resource"]["name"].string ?? ""
+            ]
+            var outputJSON = JSON()
+            outputJSON.dictionaryObject = output
+            return outputJSON
+        default:
+            return nil
         }
     }
 }

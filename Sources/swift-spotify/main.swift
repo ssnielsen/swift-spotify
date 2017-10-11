@@ -6,33 +6,17 @@
 //
 
 import Foundation
+import Commander
+import SwiftyJSON
 
-private let map: [String: SpotifyCommand] = [
-    "resume": .resume,
-    "pause": .pause
-]
 
-extension Array {
-    subscript(safeIndex index: Int) -> Element? {
-        get {
-            if !(0..<count).contains(index) {
-                return nil
-            }
-
-            return self[index]
-        }
+private func prettyPrint(with json: [String: Any]) -> String {
+    guard let data = try? JSONSerialization.data(withJSONObject: json, options: .prettyPrinted) else {
+        return "nil"
     }
-}
 
-guard let commandString = CommandLine.arguments[safeIndex: 1] else {
-    print("Please provide an argument")
-    exit(EXIT_SUCCESS)
-}
-
-guard let command = map[commandString] else {
-    print("Please provide a valid argument")
-    print(map)
-    exit(EXIT_SUCCESS)
+    let string = NSString(data: data, encoding: String.Encoding.utf8.rawValue)
+    return (string as String?) ?? "nil"
 }
 
 private func execute(command: SpotifyCommand) {
@@ -40,11 +24,13 @@ private func execute(command: SpotifyCommand) {
     let repository = SpotifyRepository(session: session)
     repository.execute(command: command)
         .then { data -> Void in
-            if let string = String(data: data, encoding: .utf8) {
-                print(string)
+            if let json = command.extractOutput(fromData: data),
+               let prettyJson = json.rawString(.utf8, options: [.prettyPrinted]) {
+                print(prettyJson)
             }
             exit(EXIT_SUCCESS)
-        }.catch { error in
+        }
+        .catch { error in
             print(error)
             exit(EXIT_FAILURE)
         }
@@ -52,4 +38,26 @@ private func execute(command: SpotifyCommand) {
     dispatchMain()
 }
 
-execute(command: command)
+let main = Group {
+    $0.command("resume") {
+        execute(command: .resume)
+    }
+
+    $0.command("pause") {
+        execute(command: .pause)
+    }
+
+    $0.command("version") {
+        execute(command: .version)
+    }
+
+    $0.command("status") {
+        execute(command: .status)
+    }
+
+    $0.command("playing") {
+        execute(command: .songInfo)
+    }
+}
+
+main.run()
